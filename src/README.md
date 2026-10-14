@@ -21,13 +21,13 @@ pip install flwr
 Fetch the app:
 
 ```shell
-flwr new @flwrlabs/quickstart-pytorch
+flwr new @flwrlabs/src
 ```
 
 This will create a new directory called `quickstart-pytorch` with the following structure:
 
 ```shell
-quickstart-pytorch
+src
 ├── pytorchexample
 │   ├── __init__.py
 │   ├── client_app.py   # Defines your ClientApp

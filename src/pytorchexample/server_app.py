@@ -4,8 +4,10 @@ import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
+import sys
 
 from pytorchexample.task import load_model, load_centralized_dataset, test
+from pytorchexample.metric_fedAvg import extract_nonaggregated_metrics
 
 # Create ServerApp
 app = ServerApp()
@@ -13,6 +15,7 @@ app = ServerApp()
 
 @app.main()
 def main(grid: Grid, context: Context) -> None:
+    sys.stdout.reconfigure(encoding='utf-8')
     """Main entry point for the ServerApp."""
 
     # Read run config
@@ -25,7 +28,8 @@ def main(grid: Grid, context: Context) -> None:
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize FedAvg strategy
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate)
+    strategy = FedAvg(fraction_evaluate=fraction_evaluate,
+                      evaluate_metrics_aggr_fn=extract_nonaggregated_metrics)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
@@ -60,3 +64,5 @@ def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
 
     # Return the evaluation metrics
     return MetricRecord({"accuracy": test_acc, "loss": test_loss})
+
+

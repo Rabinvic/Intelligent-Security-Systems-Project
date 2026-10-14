@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner, PathologicalPartitioner
 from torch.utils.data import DataLoader
@@ -14,7 +14,9 @@ from torchvision import models
 
 
 def load_model():
-    net = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+    net = models.resnet18()
+    # state_dict = torch.load("models/resnet18.pth", map_location="cpu")
+    # net.load_state_dict(state_dict)
     net.fc = nn.Linear(net.fc.in_features, 9)
     return net
 
@@ -29,22 +31,29 @@ def apply_transforms(batch):
     return batch
 
 
+def remove_feature_preprocessor(dataset_dict: DatasetDict) -> DatasetDict:
+  # Replace 'unwanted_column_name' with the actual feature name you want to remove
+  return dataset_dict.remove_columns("info")
+
+
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
     """Load partitionM pathmnist data."""
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
-        #maintain non-IID distribution and partion for 10 users
-        partitioner = PathologicalPartitioner(num_partitions = 10, partition_by="label", num_classes_per_partition=3)
+        #maintain non-IID distribution and partion for 20 users
+        partitioner = PathologicalPartitioner(num_partitions = 20, partition_by="label", num_classes_per_partition=3)
         fds = FederatedDataset(
             dataset="jafermarq/pathmnist",
             subset="28",
+            preprocessor=remove_feature_preprocessor,
             partitioners={"train": partitioner},
+
         )
     partition = fds.load_partition(partition_id)
     print(partition)
     # Divide data on each node: 80% train, 20% test
-    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
+    partition_train_test = partition.train_test_split(test_size=0.2)
     # Construct dataloaders
     partition_train_test = partition_train_test.with_transform(apply_transforms)
     #print(partition_train_test)
