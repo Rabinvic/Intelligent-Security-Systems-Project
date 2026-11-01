@@ -5,6 +5,7 @@ Usage:
 python3 extractResults.py id mode federation
 id - ID of the run
 mode - mode of the run: attack or no_attack
+supergrid - optional, include supergrid if run on flower supergrid
 """
 
 
@@ -18,6 +19,7 @@ from pathlib import Path
 def get_csv(metric, dataset):
     avgs = []
     clients = {}
+    rounds = []
     for round in dataset:
         sum = 0
         num = 0
@@ -28,39 +30,60 @@ def get_csv(metric, dataset):
             if clients.get(key) is None:
                 clients[key] = []
             clients[key].append(dataset[round][val])
-
+        rounds.append(int(round))
         avgs.append((sum / num))
-
     with(open(f'{dir}/client_{metric}_avg.csv', 'w', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
+        c.writerow(rounds)
         c.writerow(avgs)
 
     with(open(f'{dir}/client_{metric}.csv', 'w', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
+        c.writerow(rounds)
         c.writerows(clients.values())
 
 
 
 
 id = sys.argv[1]
-dir = f'.\\results\\{sys.argv[2]}'
+dir = f'./results/{sys.argv[2]}'
 mode = sys.argv[2]
-
-
-res = subprocess.run(['flwr', 'log', id, 'supergrid'], capture_output=True, text=True, encoding='utf-8', errors='ignore')
+isSupergrid = "local"
+if len(sys.argv) > 3:
+    isSupergrid = sys.argv[3]
+res = subprocess.run(['flwr', 'log', id, isSupergrid], capture_output=True, text=True, encoding='utf-8', errors='ignore')
 
 f = open('flower_run.txt', 'w', encoding='utf-8')
 
 lines = res.stdout.splitlines()
 
+final = False
 found_results = False
-
+server_results = False
+flipped = 0
+global_acc = 0
+global_loss = 0
 for l in lines:
+    if l.startswith("Flipped"):
+        l=l.split(":")
+        flipped = float(l[1])
+        continue
     if not l.startswith('[92mINFO [0m:'):
         continue
     l = l.strip("[92mINFO [0m")
     l = l.strip(":")
     l = l.strip()
+    if l.startswith("Final"):
+        final = True
+        continue
+    if l.startswith("└──> M"):
+        l = l.split("{")
+        l = l[1].strip("}")
+        l = l.split(",")
+        global_acc = float(l[0].split(":")[1].strip())
+        global_loss = float(l[1].split(":")[1].strip())
+        continue
+
     if l.startswith("Aggregated ClientApp-side Evaluate Metrics"):
         found_results = True
         continue
@@ -119,3 +142,22 @@ file.unlink(missing_ok=True)
 
 get_csv("loss", client_loss)
 get_csv("acc", client_accuracy)
+
+dir = f'./results/attack'
+
+if not os.path.exists(f'{dir}/attack_acc.csv'):
+    with(open(f'{dir}/attack_acc.csv', 'a', encoding='utf-8')) as f:
+        c = csv.writer(f, lineterminator='\n')
+        c.writerow(["Flipped", "Accuracy"])
+        c.writerow([flipped, global_acc])
+    with(open(f'{dir}/attack_loss.csv', 'a', encoding='utf-8')) as f:
+        c = csv.writer(f, lineterminator='\n')
+        c.writerow(["Flipped", "Loss"])
+        c.writerow([flipped, global_loss])
+else:
+    with(open(f'{dir}/attack_acc.csv', 'a', encoding='utf-8')) as f:
+        c = csv.writer(f, lineterminator='\n')
+        c.writerow([flipped, global_acc])
+    with(open(f'{dir}/attack_loss.csv', 'a', encoding='utf-8')) as f:
+        c = csv.writer(f, lineterminator='\n')
+        c.writerow([flipped, global_loss])

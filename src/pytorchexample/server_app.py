@@ -1,10 +1,12 @@
 """pytorchexample: A Flower / PyTorch app."""
-
+import flwr.cli.log
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
 import sys
+
+from sympy import true
 
 from pytorchexample.task import load_model, load_centralized_dataset, test
 from pytorchexample.metric_fedAvg import extract_nonaggregated_metrics
@@ -31,6 +33,9 @@ def main(grid: Grid, context: Context) -> None:
     strategy = FedAvg(fraction_evaluate=fraction_evaluate,
                       evaluate_metrics_aggr_fn=extract_nonaggregated_metrics)
 
+    if context.run_config["poison"]:
+        print(f"Malicious:{context.run_config["malicious"]}\nFlipped:{context.run_config["flipped"]}")
+
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
         grid=grid,
@@ -45,6 +50,8 @@ def main(grid: Grid, context: Context) -> None:
         print("\nSaving final model to disk...")
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, "final_model.pt")
+
+
 
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:

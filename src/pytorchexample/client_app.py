@@ -29,7 +29,7 @@ def train(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size)
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size, context)
 
     # Call the training function
     train_loss = train_fn(
@@ -66,7 +66,7 @@ def evaluate(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    _, valloader = load_data(partition_id, num_partitions, batch_size)
+    _, valloader = load_data(partition_id, num_partitions, batch_size,context)
 
     # Call the evaluation function
     eval_loss, eval_acc = test_fn(

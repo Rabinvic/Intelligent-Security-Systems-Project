@@ -1,11 +1,13 @@
 """pytorchexample: A Flower / PyTorch app."""
+import math
+import random
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from datasets import load_dataset, DatasetDict
+from flwr.app import Context as Context
 from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import IidPartitioner, PathologicalPartitioner
+from flwr_datasets.partitioner import PathologicalPartitioner
 from torch.utils.data import DataLoader
 from torchvision.models import ResNet18_Weights
 from torchvision.transforms import Compose, Normalize, ToTensor
@@ -22,6 +24,8 @@ def load_model():
 
 fds = None  # Cache FederatedDataset
 
+FLIP_RATE = 0
+
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
@@ -36,22 +40,39 @@ def remove_feature_preprocessor(dataset_dict: DatasetDict) -> DatasetDict:
   return dataset_dict.remove_columns("info")
 
 
-def load_data(partition_id: int, num_partitions: int, batch_size: int):
-    """Load partitionM pathmnist data."""
+def swap_label(entry):
+    if random.random() > FLIP_RATE:
+        return entry
+    current = entry["label"]
+    labels = [0,1,2,3,4,5,6,7,8]
+    new_label = current
+    while new_label == current:
+        new_label = random.choice(labels)
+    entry["label"] = new_label
+    return entry
+
+def load_data(partition_id: int, num_partitions: int, batch_size: int, context: Context):
+    """Load partitioned pathmnist data."""
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
         #maintain non-IID distribution and partion for 20 users
-        partitioner = PathologicalPartitioner(num_partitions = 20, partition_by="label", num_classes_per_partition=3)
+        partitioner = PathologicalPartitioner(num_partitions = num_partitions, partition_by="label", num_classes_per_partition=3)
         fds = FederatedDataset(
             dataset="jafermarq/pathmnist",
             subset="28",
             preprocessor=remove_feature_preprocessor,
             partitioners={"train": partitioner},
-
         )
     partition = fds.load_partition(partition_id)
-    print(partition)
+    isPoisoned = context.run_config["poison"]
+    malicious = math.floor(context.run_config["malicious"]/100 * num_partitions)
+    global FLIP_RATE
+    FLIP_RATE = context.run_config["flipped"]
+
+    if isPoisoned:
+        if partition_id < malicious:
+            partition = partition.map(swap_label)
     # Divide data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2)
     # Construct dataloaders

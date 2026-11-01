@@ -1,75 +1,43 @@
----
-tags: [quickstart, vision, fds]
-dataset: [CIFAR-10]
-framework: [torch, torchvision]
----
+# Federated Learning with PyTorch and Flower to demonstrate Model Poisoning
 
-# Federated Learning with PyTorch and Flower (Quickstart Example)
+This an adaptation of the introductory example to Flower using PyTorch to study data poisoning attacks in federated learning.
 
-This introductory example to Flower uses PyTorch, but deep knowledge of PyTorch is not necessarily required to run the example. However, it will help you understand how to adapt Flower to your use case. Running this example in itself is quite easy. This example uses [Flower Datasets](https://flower.ai/docs/datasets/) to download, partition and preprocess the CIFAR-10 dataset.
+Written by: Victor Rabinovich vmr8854@rit.edu
 
-## Set up the project
+## Train Models
 
-### Fetch the app
-
-Install Flower:
-
-```shell
-pip install flwr
-```
-
-Fetch the app:
-
-```shell
-flwr new @flwrlabs/src
-```
-
-This will create a new directory called `quickstart-pytorch` with the following structure:
-
-```shell
-src
-├── pytorchexample
-│   ├── __init__.py
-│   ├── client_app.py   # Defines your ClientApp
-│   ├── server_app.py   # Defines your ServerApp
-│   └── task.py         # Defines your model, training and data loading
-├── pyproject.toml      # Project metadata like dependencies and configs
-└── README.md
-```
-
-### Install dependencies and project
-
-Install the dependencies defined in `pyproject.toml` as well as the `pytorchexample` package.
+To run the federated learning without model poisoning ```flwr run ./src/ --stream``` suffices. Otherwise you must modify the run config as follows
 
 ```bash
-pip install -e .
+flwr run ./src --run-config "poison=true flipped=[int] malicious=[int]" --stream
 ```
+Where flipped and malicious are the percentage of label switching and malicious actors respectively.
 
-## Run the project
+## Gather Data
+To gather data you will run the extractResults.py script, this script takes a flower run id and uses this to extract the logs to make csv files for the metrics
 
-You can run your Flower project in both _simulation_ and _deployment_ mode without making changes to the code. If you are starting with Flower, we recommend you using the _simulation_ mode as it requires fewer components to be launched manually. By default, `flwr run` will make use of the Simulation Engine.
-
-### Run with the Simulation Engine
-
-> [!TIP]
-> This example runs faster when the `ClientApp`s have access to a GPU. Check the [Simulation Engine documentation](https://flower.ai/docs/framework/how-to-run-simulations.html) to learn more about Flower simulations and how to optimize them.
+You must ensure your terminal is set to receive UTF8 python results or else the script can not read the Flower log data/
+This can be done in PowerShell with 
+```shell
+$env:PYTHONUTF8=1
+```
+### Usage
 
 ```bash
-# Run with the default federation (CPU only)
-flwr run .  --stream
+py ./src/extractResults.py [id] [mode] [Optional: supergrid]
 ```
+id: The id of the flower run can be found at the top of the stream from the run, or if on Flower Supergrid listed as Run ID
+mode: ```attack``` or ```no_attack``` based on if there was an attack simulated for that run or not
+supergrid: Optional flag if run occurred on Flower Supergrid
 
-You can also override some of the settings for your `ClientApp` and `ServerApp` defined in `pyproject.toml`. For example:
+>The final global metrics for different severities of flipping attacks gets appended each time the script is run into its own
+> csv file. However only the individual client metrics of the last attack run gets saved for the plots.
+
+
+## Plotting Data
+After running extractResults.py run plot.py to plot the results and save the graphs
 
 ```bash
-flwr run . --run-config "num-server-rounds=5 learning-rate=0.05"  --stream
+py ./src/plot.py [mode]
 ```
-
-> [!TIP]
-> For a more detailed walk-through check our [quickstart PyTorch tutorial](https://flower.ai/docs/framework/tutorial-quickstart-pytorch.html)
-
-### Run with the Deployment Engine
-
-Follow this [how-to guide](https://flower.ai/docs/framework/how-to-run-flower-with-deployment-engine.html) to run the same app in this example but with Flower's Deployment Engine. After that, you might be intersted in setting up [secure TLS-enabled communications](https://flower.ai/docs/framework/how-to-enable-tls-connections.html) and [SuperNode authentication](https://flower.ai/docs/framework/how-to-authenticate-supernodes.html) in your federation.
-
-If you are already familiar with how the Deployment Engine works, you may want to learn how to run it using Docker. Check out the [Flower with Docker](https://flower.ai/docs/framework/docker/index.html) documentation.
+mode: ```attack``` or ```no_attack``` based on folder to extract data from
