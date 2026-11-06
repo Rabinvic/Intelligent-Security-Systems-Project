@@ -26,22 +26,23 @@ def get_csv(metric, dataset):
         for val in dataset[round]:
             sum += dataset[round][val]
             num += 1
+            key = val
             if clients.get(key) is None:
                 id = key.split("_")[1]
-                isMalicious = "true" if bad_actors.get(id) else "false"
+                isMalicious = "true" if bad_actors.get(int(id)) else "false"
                 clients[key] = [int(id), isMalicious]
             clients[key].append(dataset[round][val])
         rounds.append(f'Round:{round}')
         avgs.append((sum / num))
     flip = ""
-    if flipped != 0:
+    if mode == 'attack':
         flip = f'_{flipped}'
     p = ''
     if pid:
         p = 'pid_'
     with(open(f'{dir}/{p}client_{metric}_avg{flip}.csv', 'w', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
-        c.writerow(rounds)
+        c.writerow(rounds[2:])
         c.writerow(avgs)
 
     with(open(f'{dir}/{p}client_{metric}{flip}.csv', 'w', encoding='utf-8')) as f:
@@ -55,7 +56,8 @@ def get_csv(metric, dataset):
 id = sys.argv[1]
 dir = f'./results/{sys.argv[2]}'
 mode = sys.argv[2]
-pid = bool(sys.argv[3].capitalize())
+pid_string = sys.argv[3].lower()
+pid = True if pid_string == "true" else False
 isSupergrid = "local"
 if len(sys.argv) > 4:
     isSupergrid = sys.argv[4]
@@ -73,17 +75,24 @@ flipped = 0
 global_acc = 0
 global_loss = 0
 bad_actors = {}
-round_elim = {}
+clients = 0
+round_elim = []
 r = 0 #round
 for l in lines:
+    if l.endswith("simulated SuperNodes)"):
+        l = l.strip(" simulated SuperNodes)")
+        ind = l.find("(")
+        l = l[ind+1:]
+        clients = int(l)
+        for i in range(clients):
+            round_elim.append(0)
+        continue
     if pid and l.startswith("\x1b[36m(ClientAppActor pid=") and l.endswith("-"):
         l = l.split("\x1b[0m")
         l = l[1]
         l = l.strip("-")
         l = l.split(":")
         isMalicious =  True if l[1] == "MALICIOUS" else False
-        print(l)
-        print(isMalicious)
         bad_actors[int(l[0].lstrip())] = isMalicious
         continue
     if pid and l.startswith("---"):
@@ -94,10 +103,13 @@ for l in lines:
         l = l.lstrip("[ANOMALY]")
         l = l.split("|")
         l = l[0].strip()
+        l = l.lstrip("Client ")
+        l = int(l)
         round_elim[l] = r
+        continue
     if l.startswith("Flipped"):
         l=l.split(":")
-        flipped = float(l[1])
+        flipped = int(l[1])
         continue
     if not l.startswith('[92mINFO [0m:'):
         continue
@@ -129,6 +141,8 @@ for l in lines:
 
 f.close()
 
+
+
 f = open('flower_run.txt', 'r', encoding='utf-8')
 lines = f.readlines()
 
@@ -138,13 +152,19 @@ client_accuracy = {}
 round = ""
 for l in lines:
     l = l.split()
-    #print(l)
     if len(l) == 0:
         continue
     if len(l) != 2:
         round = l[0].strip(":")
+        prev_round = str(int(round) - 1)
         client_loss[round] = {}
         client_accuracy[round] = {}
+        for i in range(clients):
+            if round_elim[i] <= int(round) and round_elim[i] != 0:
+                key = f'client_{i}_eval_acc'
+                client_accuracy[round][key] = client_accuracy[prev_round][key]
+                key = f'client_{i}_eval_loss'
+                client_loss[round][key] = client_loss[prev_round][key]
         key = l[2]
         key = key.strip(":")
         key = key.strip("'")
@@ -154,6 +174,18 @@ for l in lines:
         client_accuracy[round][key] = float(val)
         # print(round)
     else:
+        if l[1].startswith('{}'):
+            round = l[0].strip(":")
+            prev_round = str(int(round) - 1)
+            client_loss[round] = {}
+            client_accuracy[round] = {}
+            for i in range(clients):
+                key = f'client_{i}_eval_acc'
+                client_accuracy[round][key] = client_accuracy[prev_round][key]
+                key = f'client_{i}_eval_loss'
+                client_loss[round][key] = client_loss[prev_round][key]
+            continue
+
         key = l[0]
         key = key.strip(":")
         key = key.strip("'")
@@ -167,6 +199,18 @@ for l in lines:
             client_loss[round][key] = float(val)
 
 f.close()
+
+clients_arr = []
+for i in range(clients):
+    clients_arr.append(f'Client {i}')
+    if round_elim[i] == 0:
+        round_elim[i] = int(round)
+
+if pid:
+    with(open(f'{dir}/pid_round_exit_{flipped}.csv', 'w', encoding='utf-8')) as f:
+        c = csv.writer(f, lineterminator='\n')
+        c.writerow(clients_arr)
+        c.writerow(round_elim)
 
 file = Path('flower_run.txt')
 file.unlink(missing_ok=True)

@@ -182,7 +182,7 @@ class PIDFedAvg(flwr.serverapp.strategy.FedAvg):
         for layer_idx in range(
                 len(next(iter(client_params.values())))
         ):
-            layer_average = np.median(
+            layer_average = np.mean(
                 [
                     params[layer_idx]
                     for params in client_params.values()
@@ -221,13 +221,6 @@ class PIDFedAvg(flwr.serverapp.strategy.FedAvg):
                 f"distance from average: {distance:.6f}"
             )
 
-
-
-        # Mean deviation acts as the expected behavior
-        expected_distance = np.median(
-            list(client_distances.values())
-        )
-
         accepted_replies = []
         anomaly_count = 0
 
@@ -236,7 +229,7 @@ class PIDFedAvg(flwr.serverapp.strategy.FedAvg):
 
             distance = client_distances[client_id]
 
-            error = distance - expected_distance
+            error = distance
 
             error /= max(list(client_distances.values()))
 
