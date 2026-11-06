@@ -72,12 +72,14 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, context: 
 
     if isPoisoned:
         if partition_id < malicious:
+            print(f"{partition_id}:MALICIOUS---------------------------------------------------------------")
             partition = partition.map(swap_label)
+        else:
+            print(f"{partition_id}:NORMAL------------------------------------------------------------------")
     # Divide data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2)
     # Construct dataloaders
     partition_train_test = partition_train_test.with_transform(apply_transforms)
-    #print(partition_train_test)
     trainloader = DataLoader(
         partition_train_test["train"], batch_size=batch_size, shuffle=True
     )

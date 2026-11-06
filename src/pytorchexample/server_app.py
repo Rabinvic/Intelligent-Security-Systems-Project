@@ -10,7 +10,7 @@ from sympy import true
 
 from pytorchexample.task import load_model, load_centralized_dataset, test
 from pytorchexample.metric_fedAvg import extract_nonaggregated_metrics
-
+from pytorchexample.pid import PIDFedAvg
 # Create ServerApp
 app = ServerApp()
 
@@ -29,9 +29,11 @@ def main(grid: Grid, context: Context) -> None:
     global_model = load_model()
     arrays = ArrayRecord(global_model.state_dict())
 
+    strategy = FedAvg(fraction_evaluate= fraction_evaluate, evaluate_metrics_aggr_fn=extract_nonaggregated_metrics)
     # Initialize FedAvg strategy
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate,
-                      evaluate_metrics_aggr_fn=extract_nonaggregated_metrics)
+    if context.run_config["pid"]:
+        strategy = PIDFedAvg(fraction_evaluate=fraction_evaluate, kd=context.run_config["kd"], kp=context.run_config["kp"],
+                            ki=context.run_config["ki"], pid_threshold=context.run_config["threshold"])
 
     if context.run_config["poison"]:
         print(f"Malicious:{context.run_config["malicious"]}\nFlipped:{context.run_config["flipped"]}")

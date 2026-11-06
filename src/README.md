@@ -9,7 +9,7 @@ Written by: Victor Rabinovich vmr8854@rit.edu
 To run the federated learning without model poisoning ```flwr run ./src/ --stream``` suffices. Otherwise you must modify the run config as follows
 
 ```bash
-flwr run ./src --run-config "poison=true flipped=[int] malicious=[int]" --stream
+flwr run ./src --run-config "poison=true flipped=[int] malicious=[int] kp=[float] ki=[float] kd=[float] threshold=[float]" --stream
 ```
 Where flipped and malicious are the percentage of label switching and malicious actors respectively.
 

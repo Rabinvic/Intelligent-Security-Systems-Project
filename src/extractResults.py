@@ -19,25 +19,32 @@ from pathlib import Path
 def get_csv(metric, dataset):
     avgs = []
     clients = {}
-    rounds = []
+    rounds = ['id', 'isMalicious']
     for round in dataset:
         sum = 0
         num = 0
         for val in dataset[round]:
             sum += dataset[round][val]
             num += 1
-            key = val
             if clients.get(key) is None:
-                clients[key] = []
+                id = key.split("_")[1]
+                isMalicious = "true" if bad_actors.get(id) else "false"
+                clients[key] = [int(id), isMalicious]
             clients[key].append(dataset[round][val])
-        rounds.append(int(round))
+        rounds.append(f'Round:{round}')
         avgs.append((sum / num))
-    with(open(f'{dir}/client_{metric}_avg.csv', 'w', encoding='utf-8')) as f:
+    flip = ""
+    if flipped != 0:
+        flip = f'_{flipped}'
+    p = ''
+    if pid:
+        p = 'pid_'
+    with(open(f'{dir}/{p}client_{metric}_avg{flip}.csv', 'w', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow(rounds)
         c.writerow(avgs)
 
-    with(open(f'{dir}/client_{metric}.csv', 'w', encoding='utf-8')) as f:
+    with(open(f'{dir}/{p}client_{metric}{flip}.csv', 'w', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow(rounds)
         c.writerows(clients.values())
@@ -48,10 +55,12 @@ def get_csv(metric, dataset):
 id = sys.argv[1]
 dir = f'./results/{sys.argv[2]}'
 mode = sys.argv[2]
+pid = bool(sys.argv[3].capitalize())
 isSupergrid = "local"
-if len(sys.argv) > 3:
-    isSupergrid = sys.argv[3]
+if len(sys.argv) > 4:
+    isSupergrid = sys.argv[4]
 res = subprocess.run(['flwr', 'log', id, isSupergrid], capture_output=True, text=True, encoding='utf-8', errors='ignore')
+
 
 f = open('flower_run.txt', 'w', encoding='utf-8')
 
@@ -63,7 +72,29 @@ server_results = False
 flipped = 0
 global_acc = 0
 global_loss = 0
+bad_actors = {}
+round_elim = {}
+r = 0 #round
 for l in lines:
+    if pid and l.startswith("\x1b[36m(ClientAppActor pid=") and l.endswith("-"):
+        l = l.split("\x1b[0m")
+        l = l[1]
+        l = l.strip("-")
+        l = l.split(":")
+        isMalicious =  True if l[1] == "MALICIOUS" else False
+        print(l)
+        print(isMalicious)
+        bad_actors[int(l[0].lstrip())] = isMalicious
+        continue
+    if pid and l.startswith("---"):
+        l = l.strip("-").strip()
+        r = int(l[len(l)-1])
+        continue
+    if pid and l.startswith("[ANOMALY]"):
+        l = l.lstrip("[ANOMALY]")
+        l = l.split("|")
+        l = l[0].strip()
+        round_elim[l] = r
     if l.startswith("Flipped"):
         l=l.split(":")
         flipped = float(l[1])
@@ -143,21 +174,23 @@ file.unlink(missing_ok=True)
 get_csv("loss", client_loss)
 get_csv("acc", client_accuracy)
 
-dir = f'./results/attack'
+dir = f'./results/attack/'
+if pid:
+    dir += "pid_"
 
-if not os.path.exists(f'{dir}/attack_acc.csv'):
-    with(open(f'{dir}/attack_acc.csv', 'a', encoding='utf-8')) as f:
+if not os.path.exists(f'{dir}attack_acc.csv'):
+    with(open(f'{dir}attack_acc.csv', 'a', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow(["Flipped", "Accuracy"])
         c.writerow([flipped, global_acc])
-    with(open(f'{dir}/attack_loss.csv', 'a', encoding='utf-8')) as f:
+    with(open(f'{dir}attack_loss.csv', 'a', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow(["Flipped", "Loss"])
         c.writerow([flipped, global_loss])
 else:
-    with(open(f'{dir}/attack_acc.csv', 'a', encoding='utf-8')) as f:
+    with(open(f'{dir}attack_acc.csv', 'a', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow([flipped, global_acc])
-    with(open(f'{dir}/attack_loss.csv', 'a', encoding='utf-8')) as f:
+    with(open(f'{dir}attack_loss.csv', 'a', encoding='utf-8')) as f:
         c = csv.writer(f, lineterminator='\n')
         c.writerow([flipped, global_loss])
