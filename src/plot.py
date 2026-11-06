@@ -13,10 +13,51 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 
+
+def plot_attack_severity(file, metric):
+    severity= pd.read_csv(file)
+    label = 'Accuracy' if metric == "acc" else 'Loss'
+    severity.plot(x='Flipped', y=label, kind='line')
+    plt.xlabel('Flipping Percentage')
+    plt.ylabel(label)
+    plt.title(f'{label} with attack of various label flipping percentages')
+    plt.legend(fontsize='small')
+    plotName = file.name.replace(".csv", ".png")
+    plt.savefig(f"./results/{mode}/{plotName}")
+    plt.close()
+
+def plot_client_metric(file, metric, averaged, flip):
+    data = pd.read_csv(file,usecols=lambda column: column not in ["isMalicious"], index_col="id") if not averaged else (
+        pd.read_csv(file, usecols=lambda column: column not in ["isMalicious"]))
+    data_transposed = data.transpose()
+    label = "Accuracy" if metric == "acc" else "Loss"
+    title = f"Average {label} over rounds, Flip Rate {flip}" if averaged else f"{label} over rounds per client, Flip Rate {flip}"
+    data_transposed.plot(kind='line')
+    plt.xlabel('Round')
+    plt.ylabel(label)
+    plt.title(title)
+    plt.legend(fontsize='small')
+    plotName = file.name.replace(".csv", ".png")
+    plt.savefig(f"./results/{mode}/{plotName}")
+    plt.close()
+
+def plot_drop(file, flip):
+    data = pd.read_csv(file)
+    data_transposed = data.transpose()
+    data_transposed.plot(kind='bar')
+    plt.title(f'Round In Which Client was dropped, Flip Rate:{flip}', fontsize=14, fontweight='bold')
+    plt.xlabel('Client', fontsize=12)
+    plt.ylabel('Round', fontsize=12)
+    plt.gcf().subplots_adjust(bottom=0.2)
+    plotName = file.name.replace(".csv", ".png")
+    plt.savefig(f"./results/{mode}/{plotName}")
+    plt.close()
+
+
+
 mode = sys.argv[1]
 pid_string = sys.argv[2].lower()
 pid = True if pid_string == "true" else False
-print(pid)
 
 
 directory = Path(f"./results/{mode}/")
@@ -29,55 +70,25 @@ for f in directory.iterdir():
         files.append(f)
     if not pid and not f.name.startswith("pid"):
         files.append(f)
-print(files)
 
-# accuracy_per = pd.read_csv(f'./results/{mode}/client_acc.csv')
-# accuracy_avg = pd.read_csv(f'./results/{mode}/client_acc_avg.csv')
-#
-# loss_per = pd.read_csv(f'./results/{mode}/client_loss.csv')
-# loss_avg = pd.read_csv(f'./results/{mode}/client_loss_avg.csv')
-#
-# aP_transposed = accuracy_per.transpose()
-# aP_avg_transposed = accuracy_avg.transpose()
-# lP_transposed = loss_per.transpose()
-# lP_avg_transposed = loss_avg.transpose()
-#
-# aP_transposed.plot(kind='line')
-# plt.xlabel('Round')
-# plt.ylabel('Accuracy')
-# plt.title('Accuracy over rounds per client')
-# plt.savefig(f"./results/{mode}/client_acc.png")
-#
-# aP_avg_transposed.plot(kind='line')
-# plt.xlabel('Round')
-# plt.ylabel('Accuracy')
-# plt.title('Average Accuracy over rounds')
-# plt.savefig(f"./results/{mode}/client_acc_avg.png")
-#
-# lP_transposed.plot(kind='line')
-# plt.xlabel('Round')
-# plt.ylabel('Loss')
-# plt.title('Loss over rounds per client')
-# plt.savefig(f"./results/{mode}/client_loss.png")
-#
-# lP_avg_transposed.plot(kind='line')
-# plt.xlabel('Round')
-# plt.ylabel('Loss')
-# plt.title('Average Loss over rounds')
-# plt.savefig(f"./results/{mode}/client_loss_avg.png")
-#
-# mode = "attack"
-# severity_acc = pd.read_csv(f'./results/{mode}/attack_acc.csv')
-# severity_loss = pd.read_csv(f'./results/{mode}/attack_loss.csv')
-#
-# severity_loss.plot(x='Flipped', y='Loss', kind="line")
-# plt.xlabel('Flipping Percentage')
-# plt.ylabel('Loss')
-# plt.title('Loss with attack of various label flipping percentages')
-# plt.savefig(f"./results/{mode}/attack_loss.png")
-#
-# severity_acc.plot(x='Flipped', y='Accuracy', kind='line')
-# plt.xlabel('Flipping Percentage')
-# plt.ylabel('Accuracy')
-# plt.title('Accuracy with attack of various label flipping percentages')
-# plt.savefig(f"./results/{mode}/attack_acc.png")
+for f in files:
+    file_name = f.name
+    file_name = file_name.replace(".csv", "")
+    if pid:
+        file_name = file_name.lstrip("pid_")
+    if file_name.startswith("attack"):
+        if file_name.endswith("acc"):
+            plot_attack_severity(f, "acc")
+        else:
+            plot_attack_severity(f, "loss")
+        continue
+    if file_name.startswith("round"):
+        flip = file_name.split("_")[2]
+        plot_drop(f,flip)
+        continue
+    file_name = file_name.lstrip("client_")
+    params = file_name.split("_")
+    metric = params[0]
+    fliprate = params[len(params) - 1]
+    averaged = False if len(params) == 2 else True
+    plot_client_metric(f, metric, averaged, fliprate)
